@@ -2,7 +2,6 @@
 title: "Vision-enhanced Floating Car Data (vision-xFCD) analysis"
 author:
 - name: "Dmitry Pavlyuk"
-  affiliation: "Data Analytics &amp; Artificial Intelligence Research Cluster, Transport and Telecommunication Institute"
 date: "Oct 1 2020 - ongoing"
 output: html_document
 ---
