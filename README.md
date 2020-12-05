@@ -20,5 +20,5 @@ Conference- and paper-specific markdowns
 1. 24nd Euro Working Group on Transportation Meeting - EWGT 2021 http://ewgt2021.web.ua.pt
     + [markdown](./EWGT2021.Rmd)
     + [execution results](./EWGT2021.html)
-    + [Abstracts submitted]
+    + [Extended Abstracts prepared]
     
