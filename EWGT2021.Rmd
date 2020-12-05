@@ -1,0 +1,166 @@
+---
+title: "EWGT-2021: Potential of vision-enhanced floating car data for urban traffic estimation"
+author:
+- name: "Dmitry Pavlyuk"
+  affiliation: "Data Analytics &amp; Artificial Intelligence Research Cluster, Transport and Telecommunication Institute"
+date: December 5, 2020
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+This markdown reproduces the research "Potential of vision-enhanced floating car data for urban traffic estimation, submitted to the 24rd EURO Working Group on Transportation Meeting, EWGT 2021.
+
+Load necessary libraries
+----------------
+```{r libs}
+require(needs)
+needs(igraph)
+needs(matrixcalc)
+needs(fsMTS)
+needs(plot.matrix)
+needs(expm)
+needs(dplyr)
+needs(ggplot2)
+needs(tidyr)
+source("functions.R")
+```
+Load necessary libraries
+----------------
+```{r paths}
+data.folder <- file.path(getwd(),"data")
+output.folder <- file.path(getwd(),"output")
+```
+
+Prepare PeMS data
+```{r sampling}
+pems.rds <- file.path(data.folder,"PeMS","prepared.rds")
+if (!file.exists(pems.rds)){
+  meta<-read.csv(file.path(data.folder,"PeMS","d07_text_meta_2020_11_16.txt"), header=T, sep="\t")
+  stations<-c(717046, 717045,717263, 717264,716943, 716942,716331, 717445,717047, 716028,716946, 718085,718173,716939)
+  observable<-list('717046'='717045', '717045'='717046','717263'='717264', '717264'='717263','716943'='716942', '716942'='716943','716331'='717445', 
+                   '717445'='716331','717047'='716028', '716028'='717047','716946'='718085', '718085'='716946','718173'='716939', '716939'='718173')
+  data.raw<-read.csv(file.path(data.folder,"PeMS","d07_text_station_5min_2020_11_29.txt"), header=F)
+  data.tb<-as_tibble(data.raw)
+  data.tb<-data.tb%>%mutate(datetime=as.POSIXct(V1, format="%m/%d/%Y %H:%M:%S"), station=V2, volume=V10, occupancy=V11, speed=V12)%>%
+    select(datetime,station,volume, occupancy,speed)
+  data.tbf<-data.tb%>%filter(station %in% stations)%>%mutate(speed=ifelse(is.na(speed),65,speed))
+  probs<-data.tbf%>%group_by(station)%>%summarise(mean_flow=mean(volume, na.rm=T))%>%pull(mean_flow)
+  names(probs)<-stations
+  #sort(stations)
+  #sort(unique(data.tbf$station))
+  vols<-data.tbf%>%select(datetime, station, volume)%>%mutate(volume=ifelse(is.na(volume),0,volume))%>%pivot_wider(names_from=station, values_from=volume)
+  rels<-cor(vols%>%select(-datetime))
+  md<-rowSums(abs(rels))
+  Lw<--abs(rels)+diag(ncol(rels))+diag(md)
+  data.prepared <- list(speeds=data.tbf%>%mutate(station=as.factor(station))%>%
+                          select(datetime, station, speed), Lw=Lw, probabilities = probs,observable=observable)
+  saveRDS(data.prepared, file=pems.rds)
+}else{
+  warning("Prepared data exists: loading")
+  data.prepared <- readRDS(file = pems.rds)
+}
+```
+
+# Descriptive analysis
+```{r}
+  dat<-data.prepared$speeds%>%pivot_wider(names_from=station, values_from=speed)%>%select(-datetime)
+  N <- ncol(dat)
+  T <- nrow(dat)
+  Q <- t(dat)
+```
+Data dimensions: `r dim(Q)`
+
+Speed plots
+```{r}  
+  data.prepared$speeds%>%ggplot(aes(x = datetime, y = speed, col=station, group=station)) + geom_line(size=1)
+```
+
+Speed variance
+```{r}
+  data.prepared$speeds%>%group_by(station)%>%summarise(sd(speed))
+```
+
+# Traffic estimation
+
+```{r}
+sp<-5e-3
+omega<-randomOmega(N, T, sp, Q)
+sum(omega>0)/(N*T)
+res<-TGMCS(Q, data.prepared$Lw, omega, returnQhat=T, lambda3=1)
+hat.tbf<-as_tibble(t(res$Qhat))
+hat.tbf$datetime<-unique(data.prepared$speeds%>%pull(datetime))
+hat.tbf%>%pivot_longer(-one_of("datetime"), names_to="station", values_to = "speed")%>%
+  ggplot(aes(x = datetime, y = speed, col=station, group=station)) + geom_line(size=1)
+res$observedMAE
+res$unobservedMAE
+res$observedMAPE
+res$unobservedMAPE
+```
+
+# Experiments
+```{r}
+results.rds <- file.path(output.folder,"results.rds")
+sp.list<-c(5e-4,1e-3,2e-3,3e-3,4e-3,5e-3,9e-3)
+if (!file.exists(results.rds)){
+  est<-list()
+  r<-15
+  mu=0.0001
+  lambda1=0.01
+  lambda2=0.05
+  lambda3=1
+  tol=1e-6
+  maxIter=1e6
+  for(rep in 1:10){
+    for (sp in sp.list){
+      omega <- randomOmega(N, T, sp, Q)
+      omegax2 <-omega+randomOmega(N, T, sp, Q)
+      omegax2[omegax2>1]<-1
+      omegaExt <-enhanceOmega(omega, data.prepared$observable)
+      est[[length(est)+1]]<-c(TGMCS(Q, data.prepared$Lw, omega,accMask=omega,maxIter=maxIter,tol=tol,
+                                    r=r,mu=mu,lambda1=lambda1, lambda2=lambda2, lambda3=lambda3),
+                              sparsity=sp,obslinks=sum(omega>0),coverage=sum(omega>0)/(N*T), name="omega")
+      est[[length(est)+1]]<-c(TGMCS(Q, data.prepared$Lw, omegax2,accMask=omegax2,maxIter=maxIter,tol=tol,
+                                    r=r,mu=mu,lambda1=lambda1, lambda2=lambda2, lambda3=lambda3),
+                              sparsity=sp,obslinks=sum(omegax2>0),coverage=sum(omegax2>0)/(N*T), name="omegax2")
+      est[[length(est)+1]]<-c(TGMCS(Q, data.prepared$Lw, omegaExt,accMask=omegaExt,maxIter=maxIter,tol=tol,
+                                    r=r,mu=mu,lambda1=lambda1, lambda2=lambda2, lambda3=lambda3), 
+                              sparsity=sp,obslinks=sum(omegaExt>0),coverage=sum(omegaExt>0)/(N*T),name="omegaExt")
+      print(tail(bind_rows(est)))
+      print(paste(rep,sp))
+    }
+  }
+  saveRDS(est, file=results.rds)
+}else{
+  est <- readRDS(results.rds)
+}
+```
+
+Experimental results
+```{r}
+est.df<-bind_rows(est)
+est.df
+
+mCov.df<-est.df%>%filter(name=="omega")%>%group_by(sparsity)%>%summarise(meanCoverage = mean(coverage))
+est.df<-est.df%>%left_join(mCov.df,by=c("sparsity"))
+
+f<-1.96
+est.df%>%filter(converged==TRUE)%>%select(name, obslinks, sparsity,unobservedMAE)%>%
+  group_by(name, sparsity)%>%
+  summarise(meanMAE=mean(unobservedMAE), sdMAE = sd(unobservedMAE), n=n(), minMAE=min(unobservedMAE), maxMAE=max(unobservedMAE),
+            lb=max(meanMAE-f*sdMAE/sqrt(n),minMAE),ub=min(meanMAE+f*sdMAE/sqrt(n),maxMAE))%>%
+  ggplot(aes(x = sparsity, y = meanMAE, col=name, group=name,linetype=name)) + geom_line(size=1)+
+  geom_ribbon(aes(ymin=lb, ymax=ub, col=name, group=name,linetype=name), alpha=0.1)
+
+est.df%>%filter(converged==TRUE)%>%
+  group_by(name, sparsity,meanCoverage)%>%
+  summarise(meanMAPE=mean(unobservedMAPE), sdMAPE = sd(unobservedMAPE), n=n(), minMAPE=min(unobservedMAPE), maxMAPE=max(unobservedMAPE),
+            lb=max(meanMAPE-f*sdMAPE/sqrt(n),minMAPE),ub=min(meanMAPE+f*sdMAPE/sqrt(n),maxMAPE))%>%
+  ggplot(aes(x = meanCoverage, y = meanMAPE, col=name, group=name,linetype=name)) + geom_line(size=1)+
+  geom_ribbon(aes(ymin=lb, ymax=ub, col=name, group=name,linetype=name), alpha=0.1)
+
+est.df%>%filter(converged==TRUE)%>%
+  group_by(name, sparsity,meanCoverage)%>%
+  summarise(meanMAPE=mean(unobservedMAPE), meanSp = mean(obslinks)/(N*T))%>%mutate(coverage = round(meanCoverage,2))%>%
+  pivot_wider(id_cols=c(name), names_from="coverage", values_from="meanMAPE")
+```
