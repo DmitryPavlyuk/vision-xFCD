@@ -1,10 +1,8 @@
 ---
 title: "EWGT-2021: Potential of vision-enhanced floating car data for urban traffic estimation"
-author:
-- name: "Dmitry Pavlyuk"
+author: "Dmitry Pavlyuk"
   affiliation: "Data Analytics &amp; Artificial Intelligence Research Cluster, Transport and Telecommunication Institute"
 date: December 5, 2020
-output: html_document
 editor_options: 
   chunk_output_type: console
 ---

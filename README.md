@@ -1,9 +1,7 @@
 ---
 title: "Vision-enhanced Floating Car Data (vision-xFCD) analysis"
-author:
-- name: "Dmitry Pavlyuk"
+author: "Dmitry Pavlyuk"
 date: "Oct 1 2020 - ongoing"
-output: html_document
 ---
 
 This repository supports studies, related to vision-enhanced floating car data (vision-xFCD).
