@@ -109,33 +109,36 @@ print(res['unobservedMAPE'],res['observedMAPE'],res['unobservedMAE'],res['observ
 results = {}
 
 
-
+results_file = "output/results-2.pkl"
 
 sp_list = [1e-4, 2e-4, 3e-4, 4e-4, 5e-4, 7e-4, 9e-4, 13e-4]
 l3_list = [10]
-start = time.time()
-for lambda3 in l3_list:
-    for sp in sp_list:
-        omega = randomOmega(sp,data_volume)
-        omega2x = omega+randomOmega(sp,data_volume)
-        omegaExt = enhanceOmega(omega, gamma)
-        omegas = {'omega':omega, 'omega2x':omega2x, 'omegaExt':omegaExt}
-        for o in omegas:
-            print("lambda3 =", lambda3, "sp =", sp, "o = ", o)
-            res = TGMCS(data_speed,Lw,H, omegas[o], lambda3 = lambda3)
-            res['sparsity'] = sp
-            res['lambda3'] = lambda3
-            res['coverage'] = coverage(omegas[o])
-            res['name'] = o
-            results[len(results)+1] = res
-        resdf = pd.DataFrame.from_dict(results, orient='index')
-        resdf.to_pickle("output/results.pkl")
-        print(resdf.tail())
-end = time.time()
-print ("Time elapsed:", end - start)
+for i in range(30):
+    start = time.time()
+    print("i =", i)
+    for lambda3 in l3_list:
+        for sp in sp_list:
+            omega = randomOmega(sp,data_volume)
+            omega2x = omega+randomOmega(sp,data_volume)
+            omegaExt = enhanceOmega(omega, gamma)
+            omegas = {'omega':omega, 'omega2x':omega2x, 'omegaExt':omegaExt}
+            for o in omegas:
+                print("lambda3 =", lambda3, "sp =", sp, "o = ", o)
+                res = TGMCS(data_speed,Lw,H, omegas[o], lambda3 = lambda3)
+                res['sparsity'] = sp
+                res['lambda3'] = lambda3
+                res['coverage'] = coverage(omegas[o])
+                res['name'] = o
+                results[len(results)+1] = res
+            resdf = pd.DataFrame.from_dict(results, orient='index')
+            resdf.to_pickle(results_file)
+            print(resdf.tail())
+    end = time.time()
+    print ("Time elapsed:", end - start)
+    
 
 resdf = pd.DataFrame.from_dict(results, orient='index')
 resdf[resdf['name']=="omegaExt"].pivot(index='sparsity',columns='lambda3',values='unobservedMAPE')
-resdf.to_pickle("output/results.pkl")
+resdf.to_pickle()
 
 
