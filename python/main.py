@@ -3,14 +3,16 @@ import numpy as np
 import pandas as pd
 import array as arr 
 import time as time 
+from os import path
+import matplotlib.pyplot as plt
 
-df = pd.read_csv ('data/PeMS/d07_text_station_5min_2020_11_29.txt',header=None);
-print(df);
 
-meta = pd.read_csv ('data/PeMS/d07_text_meta_2020_11_16.txt',header=0,sep="\t");
-print(meta)
+prepared_data_file = "data/PeMS/prepared.pkl"
 
-stations = arr.array('i', [
+if not path.exists(prepared_data_file):
+    df = pd.read_csv ('data/PeMS/d07_text_station_5min_2020_11_29.txt',header=None);
+    meta = pd.read_csv ('data/PeMS/d07_text_meta_2020_11_16.txt',header=0,sep="\t");
+    stations = arr.array('i', [
       717046,
       717045,
       717263,
@@ -25,8 +27,7 @@ stations = arr.array('i', [
       718085,
       718173,
       716939])
-
-observable = {
+    observable = {
       717046:717045,
       717045:717046,
       717263:717264,
@@ -42,19 +43,16 @@ observable = {
       718173: 716939,
       716939: 718173
     }
-print(observable[716939])
-
-df = df.rename(columns={0: 'datetime', 1: 'station', 9:'volume', 10:'occupancy',11:'speed'})[['datetime','station','volume','occupancy','speed']]
-df.dtypes
-df['datetime'] = pd.to_datetime(df['datetime'], format='%m/%d/%Y %H:%M:%S')
-print(df)
-df = df[df['station'].isin(stations)]
-df['speed'] = df['speed'].replace(np.nan,65)
-df['volume'] = df['volume'].replace(np.nan,0)
+    df = df.rename(columns={0: 'datetime', 1: 'station', 9:'volume', 10:'occupancy',11:'speed'})[['datetime','station','volume','occupancy','speed']]
+    df['datetime'] = pd.to_datetime(df['datetime'], format='%m/%d/%Y %H:%M:%S')
+    df = df[df['station'].isin(stations)]
+    df['speed'] = df['speed'].replace(np.nan,65)
+    df['volume'] = df['volume'].replace(np.nan,0)
+    df.to_pickle(prepared_data_file)
+else:
+    df = pd.read_pickle(prepared_data_file)
 data_volume = df.pivot(index='datetime',columns='station',values='volume')
 cr = data_volume.corr()
--abs(cr)
-len(cr.columns)
 Lw = (-abs(cr)+np.identity(len(cr.columns)))/np.sum(cr, axis=1)
 
 data_speed = df.pivot(index='datetime',columns='station',values='speed')
@@ -72,7 +70,6 @@ for key in observable:
     gamma.at[key, observable[key]] = 1
 gamma
 
-import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 data_volume.plot.line()
 data_speed.plot.line()
