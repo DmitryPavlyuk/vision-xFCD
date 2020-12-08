@@ -5,9 +5,27 @@ import array as arr
 import time as time 
 from os import path
 import matplotlib.pyplot as plt
+import seaborn as sbn
 
 
 prepared_data_file = "data/PeMS/prepared.pkl"
+
+observable = {
+  717046:717045,
+  717045:717046,
+  717263:717264,
+  717264:717263,
+  716943:716942,
+  716942:716943,
+  716331: 717445,
+  717445: 716331,
+  717047: 716028,
+  716028:717047,
+  716946: 718085,
+  718085: 716946,
+  718173: 716939,
+  716939: 718173
+}
 
 if not path.exists(prepared_data_file):
     df = pd.read_csv ('data/PeMS/d07_text_station_5min_2020_11_29.txt',header=None);
@@ -27,22 +45,6 @@ if not path.exists(prepared_data_file):
       718085,
       718173,
       716939])
-    observable = {
-      717046:717045,
-      717045:717046,
-      717263:717264,
-      717264:717263,
-      716943:716942,
-      716942:716943,
-      716331: 717445,
-      717445: 716331,
-      717047: 716028,
-      716028:717047,
-      716946: 718085,
-      718085: 716946,
-      718173: 716939,
-      716939: 718173
-    }
     df = df.rename(columns={0: 'datetime', 1: 'station', 9:'volume', 10:'occupancy',11:'speed'})[['datetime','station','volume','occupancy','speed']]
     df['datetime'] = pd.to_datetime(df['datetime'], format='%m/%d/%Y %H:%M:%S')
     df = df[df['station'].isin(stations)]
@@ -109,7 +111,7 @@ print(res['unobservedMAPE'],res['observedMAPE'],res['unobservedMAE'],res['observ
 results = {}
 
 
-results_file = "output/results-2.pkl"
+results_file = "output/results.pkl"
 
 sp_list = [1e-4, 2e-4, 3e-4, 4e-4, 5e-4, 7e-4, 9e-4, 13e-4]
 l3_list = [10]
@@ -136,9 +138,50 @@ for i in range(30):
     end = time.time()
     print ("Time elapsed:", end - start)
     
+# a1 = pd.read_pickle("output/res1.pkl")
+# a2 = pd.read_pickle("output/res2.pkl")
+# a3 = pd.read_pickle("output/res3.pkl")
+# a4 = pd.read_pickle("output/res4.pkl")
+# a5 = pd.read_pickle("output/res5.pkl")
+# result = pd.concat([a1,a2,a3,a4,a5])
+# result.to_pickle(results_file)
 
-resdf = pd.DataFrame.from_dict(results, orient='index')
-resdf[resdf['name']=="omegaExt"].pivot(index='sparsity',columns='lambda3',values='unobservedMAPE')
-resdf.to_pickle()
+result = pd.read_pickle(results_file)
+result
+#result[result['name']=="omegaExt"].pivot(index='sparsity',columns='lambda3',values='unobservedMAPE')
+
+pd.set_option('display.max_columns', None)
+pd.pivot_table(result, values='unobservedMAPE', index=['name'], columns=['sparsity'], aggfunc=np.mean, fill_value=0)
+result.replace({"omega": "FCD", "omega2x": "FCD x 2", "omegaExt" : "vision-xFCD"}, inplace=True)
+prop = 'unobservedMAE'
+grouped_df = result.groupby(['name','sparsity']).agg({prop:['mean', 'std', 'count'],
+                                                      'coverage':'mean'}).reset_index()
+grouped_df = grouped_df.assign(error = lambda x:1.96*x[prop]['std']/np.sqrt(x[prop]['count']))
+grouped_df= grouped_df.assign(mv=lambda x:x[prop]['mean'],
+                              lb = lambda x:x[prop]['mean']-x['error'],
+                              ub = lambda x:x[prop]['mean']+x['error'],
+                              cv = lambda x:x['coverage']['mean']*100)
+svmap = grouped_df[grouped_df['name']=="FCD"][{"sparsity","cv"}]
+svmap
+grouped_df['sparsity']
+svmap.set_index('sparsity')
+grouped_df = grouped_df.join(svmap.set_index('sparsity'), on='sparsity', rsuffix='_omega')
+grouped_df
+groups = ["FCD","FCD x 2","vision-xFCD"]
+my_dpi = 300
+plt.rc('font', size=6)  
+f, ax = plt.subplots(figsize=(2400/my_dpi,600/my_dpi), dpi=my_dpi)
+sbn.lineplot(x="cv_omega", y="mv", hue="name",data=grouped_df, ax=ax,  hue_order=groups)
+
+for group in groups:
+    ax.fill_between(x=grouped_df.loc[grouped_df["name"] == group, "cv_omega"],
+                    y1=grouped_df.loc[grouped_df["name"] == group, "lb"],
+                    y2=grouped_df.loc[grouped_df["name"] == group, "ub"], alpha=0.5)
+ax.set(xlabel='% of observed road segments', ylabel='Mean MAE, mph')
+ax.legend(title='Data')
+plt.show()
+#f.savefig('test15.png', bbox_inches='tight')
+
+
 
 
