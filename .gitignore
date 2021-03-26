@@ -1,3 +1,6 @@
 .Rproj.user
 /R/data/PeMS/d07_text_station_5min_2020_11_29.txt
 /R/data/PeMS/d07_text_meta_2020_11_16.txt
+__pycache__
+/python/data/PeMS/d07_text_station_5min_2020_11_29.txt
+/python/data/PeMS/d07_text_meta_2020_11_16.txt

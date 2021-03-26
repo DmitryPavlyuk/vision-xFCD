@@ -21,5 +21,5 @@ Conference- and paper-specific markdowns
     + [R markdown](./R/EWGT2021.Rmd)
     + [R execution results](./R/EWGT2021.pdf)
     + [Python script](./python/main.py)
-    + [Extended Abstracts prepared]
+    + [Extended Abstracts accepted]
     

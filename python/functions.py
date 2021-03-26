@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import warnings
+import random
 
 # return(sum(hadamard.prod(omega,abs(Q-Qhat)))/sum(omega>0))
 def omegaMAE(omega, Q, Qhat):
@@ -25,6 +26,26 @@ def enhanceOmega(omega, gamma):
 def coverage(omega):
     return(np.count_nonzero(np.array(omega))/np.prod(np.array(omega).shape))
     
+def composeMatrix(d, col, func):
+    dataM = pd.pivot_table(d, values=col, index=['time'], columns=['ZONE'], 
+                           aggfunc=func,dropna=False)
+    return(dataM)
+
+def simulatedObserved(sparsity, df, col):
+    all_cars = df["ID"].unique();
+    equipped_cars = random.sample(list(all_cars),round(len(all_cars)*sparsity))
+    df_filtered = df.copy()
+    df_filtered[col] = df_filtered[col].where(df['ID'].isin(equipped_cars), float('nan'))
+    mEquipped = composeMatrix(df_filtered, col, np.mean)
+    return(mEquipped)
+
+def simulatedOmega(sparsity, df, col):
+    mEquipped = simulatedObserved(sparsity, df, col)
+    mEquipped[mEquipped>=0]=1
+    mEquipped.fillna(0, inplace=True)
+    return(mEquipped)
+    
+
 def TGMCS(Qdf,Lw,H, omega,accMask=np.nan, mu=1e-4, lambda1=1e-2, lambda2=5e-2, lambda3=5e-2, r=np.nan, maxIter=1e6, tol=1e-6, returnQhat=False):
     N = len(Qdf.columns)
     T = len(Qdf)
